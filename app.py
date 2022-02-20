@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[9]:
+# In[1]:
 
 
 import pandas as pd
@@ -16,16 +16,33 @@ import dash
 from dash import Dash, dcc, html, Input, Output
 from dash.exceptions import PreventUpdate
 
+import mysql.connector as mysql
+from mysql.connector import Error
+from mysql.connector import Error
 
-# In[10]:
+get_ipython().run_line_magic('load_ext', 'sql')
+
+
+# In[2]:
+
+
+#%sql mysql://root:$@L21myo@localhost/trafficdb 
+get_ipython().run_line_magic('sql', 'mysql://admin:vzat2022@vzdb1.cfpbqtfz9res.ap-southeast-1.rds.amazonaws.com:3306/vzdb #(AWS server)')
+#%sql mysql://bfb4:bsb_4admin@vzdb1.cfpbqtfz9res.ap-southeast-1.rds.amazonaws.com:3307/vzdb #(AWS server)
+
+
+# In[3]:
 
 
 def extractdata():
-    df = pd.read_csv('01_Tables/00_Clean_Offence.csv', dtype='unicode')
+    data = get_ipython().run_line_magic('sql', 'select D.Driving_License_No, D.Gender, D.Age        from offence O, driver D where O.driver_id = D.ID;')
+    df = pd.DataFrame(data, columns = data.keys)
+      
     # Extract repeated offenders
-    df = df[['Driving_License_No','Gender', 'Age', 'Name']].copy() 
+    df = df[['Driving_License_No','Gender', 'Age']].copy() 
     df.dropna(subset=['Driving_License_No'], inplace = True)
     df['Driving_License_No'] = df['Driving_License_No'].str.upper()
+    
     # to check number of offences. 
     lldict =df.groupby('Driving_License_No')[['Driving_License_No']].count()
     lldict.rename(columns = {'Driving_License_No':'Num_Offences'},inplace = True)
@@ -35,7 +52,7 @@ def extractdata():
     df['Num_Offences'] = dln.map(dict1)
     df = df[df['Num_Offences']>1] # select only repeated offenders
     df = df.drop_duplicates(subset=['Driving_License_No'])
-    #df1['Gender']= df1['Gender'].fillna('Unknown')
+    
     df['Age'] = df['Age'].astype(float)
     df['age_groups'] = pd.cut(df['Age'], bins=[0,14,19, 24, 29, 34, 39,44, 49, 54, 59, 64,69,74, np.inf])
     
@@ -51,7 +68,7 @@ def extractdata():
     dft = df.groupby(['Num_Offences']).count()[['Driving_License_No']].nlargest(4,'Driving_License_No')
     dft.reset_index(inplace = True)
     dft.rename(columns = {'Driving_License_No': 'Num_Offenders'},inplace = True) 
-    df3 = df.groupby(['Num_Offences', 'Name']).count()[['Driving_License_No']]
+    df3 = df.groupby(['Num_Offences']).count()[['Driving_License_No']]
     df3.reset_index(inplace = True)
     df3.rename(columns = {'Driving_License_No': 'Num_Offenders'},inplace = True) 
     df3 = df3.groupby('Num_Offences', sort = False)
@@ -64,7 +81,7 @@ def extractdata():
     df4.rename(columns = {'Driving_License_No':'Num_Offenders'},inplace = True)
     df4.reset_index(inplace = True)
     df4['age_groups'] = df4['age_groups'].astype(str)
-    
+    """
     df5 = df.groupby(['age_groups', 'Name']).count()[['Driving_License_No']]
     df5.reset_index(inplace = True)
     df5.rename(columns = {'Driving_License_No': 'Num_Offenders'},inplace = True) 
@@ -76,15 +93,15 @@ def extractdata():
     ag = list(df5['age_groups'].unique())[2:10]
     df5 = df5[df5['age_groups'].isin(ag)]
     df5 = df5.groupby('age_groups').head(1)
+    """
+    return [df, df1_2, df3, df4]
 
-    return [df, df1_2, df3, df4, df5]
 
-
-# In[11]:
+# In[4]:
 
 
 def drawfig():
-    [df, df1_2, df3, df4, df5]=extractdata()
+    [df, df1_2, df3, df4]=extractdata()
 
     fig1 = px.bar(df1_2, x='Num_Offences', y='Num_Offenders', color ='Gender', 
                   color_discrete_sequence=["blue", "magenta"], hover_data = ['Num_Offenders'],
@@ -104,7 +121,7 @@ def drawfig():
     fig2.update_layout(title={'text' : 'Gender Percentage Distribution of Repeated Offenders',
                             'x':0.45,'xanchor': 'center'})
 
-    fig3 = px.bar(df3, y="Name", x = 'Num_Offenders', color='Num_Offences', orientation = 'h',
+    fig3 = px.bar(df3, y="Num_Offences", x = 'Num_Offenders', color='Num_Offences', orientation = 'h',
                   color_discrete_sequence=["blue", "magenta", "yellow", "red"],
             labels = {'Name': 'Type of Offences', 'Num_Offenders':'Number of Repeated Offenders'})
     fig3.update_layout(title={'text' : 'Major offences by Repeated Offenders','x':0.45,'xanchor': 'center'})
@@ -119,15 +136,15 @@ def drawfig():
                        yaxis_title = 'Number of offenders')
     fig4.update_layout(title={'text' : 'Number of Repeated Offenders vs. Age Group',
                             'x':0.45,'xanchor': 'center'})
-
+    """
     fig5 = px.sunburst(df5, path=['age_groups','Name'], values='Num_Offenders',color = 'Name')
     fig5.update_layout(title={'text' : 'Prominent Offence of Repeated Offenders by Age Group',
                               'x':0.45,'xanchor': 'center'})
-    
-    return [fig1, fig2, fig3, fig4, fig5]
+    """
+    return [fig1, fig2, fig3, fig4]
 
 
-# In[12]:
+# In[5]:
 
 
 app = JupyterDash(__name__)
@@ -135,7 +152,7 @@ server = app.server
 app.title="Druk-BSB"
 
 
-# In[13]:
+# In[6]:
 
 
 tab_style = {
@@ -165,7 +182,7 @@ tab_selected_style = {
 }
 
 
-# In[14]:
+# In[7]:
 
 
 app.layout = html.Div([
@@ -193,7 +210,7 @@ app.layout = html.Div([
 ], id='main-div')
 
 
-# In[15]:
+# In[8]:
 
 
 @app.callback([    
@@ -205,16 +222,16 @@ app.layout = html.Div([
 
 def update_output(tab): 
     
-    [fig1, fig2, fig3, fig4, fig5] = drawfig()      
+    [fig1, fig2, fig3, fig4] = drawfig()      
     if(tab =='home'):
         return [fig1, fig3]
     elif(tab == 'age'):
-        return [fig4,fig5]
+        return [fig2,fig4]
     else:
         return [fig1, fig3]
 
 
-# In[17]:
+# In[9]:
 
 
 if __name__ == '__main__':
@@ -222,6 +239,12 @@ if __name__ == '__main__':
     port = 5000 + random.randint(0, 999)    
     url = "http://127.0.0.1:{0}".format(port)    
     app.run_server(use_reloader=False, debug=True, port=port)
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
